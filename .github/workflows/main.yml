@@ -1,4 +1,4 @@
-name: Backup SAP CPI iFlow
+name: Backup ALL SAP CPI iFlows
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 jobs:
-  export_iflow:
+  backup_all_iflows:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,27 +16,52 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Export CPI iFlow (ZIP)
+      - name: Fetch list of all iFlows
+        id: get_iflows
         run: |
-          echo "Calling CPI API..."
-          URL="${{ secrets.CPI_HOST }}/api/v1/IntegrationDesigntimeArtifacts(Id='${{ secrets.IFLOW_ID }}',Version='${{ secrets.IFLOW_VERSION }}')/%24value"
-          echo "URL = $URL"
-          
-          curl -v -u "${{ secrets.CPI_USERNAME }}:${{ secrets.CPI_PASSWORD }}" \
-            -X GET "$URL" \
-            -o "${{ secrets.IFLOW_ID }}_${{ secrets.IFLOW_VERSION }}.zip"
+          echo "Fetching list of all iFlows..."
+          curl -u "${{ secrets.CPI_USERNAME }}:${{ secrets.CPI_PASSWORD }}" \
+            -X GET "${{ secrets.CPI_TENANT }}/api/v1/IntegrationDesigntimeArtifacts?\$expand=Artifacts" \
+            -o iflow_list.xml
 
-      - name: Commit and Push Backup (force)
+          echo "List downloaded:"
+          cat iflow_list.xml
+
+          # Extract all iFlow IDs and Versions
+          ids=$(xmllint --xpath "//d:entry/d:content/m:properties/m:Id/text()" iflow_list.xml 2>/dev/null || true)
+          versions=$(xmllint --xpath "//d:entry/d:content/m:properties/m:Version/text()" iflow_list.xml 2>/dev/null || true)
+
+          echo "iFlow IDs found:"
+          echo "$ids"
+          echo "Versions found:"
+          echo "$versions"
+
+          printf "%s\n" $ids > ids.txt
+          printf "%s\n" $versions > versions.txt
+
+      - name: Export each iFlow
+        run: |
+          paste ids.txt versions.txt | while read id version; do
+            echo "Exporting $id (version $version)..."
+
+            curl -u "${{ secrets.CPI_USERNAME }}:${{ secrets.CPI_PASSWORD }}" \
+              -X GET "${{ secrets.CPI_TENANT }}/api/v1/IntegrationDesigntimeArtifacts(Id='${id}',Version='${version}')/%24value" \
+              -o "${id}_${version}.zip"
+
+            echo "Exported: ${id}_${version}.zip"
+          done
+
+      - name: Commit and Push Backup
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
 
           git add .
-          git commit -m "Backup of ${{ secrets.IFLOW_ID }} (version ${{ secrets.IFLOW_VERSION }})" || echo "No changes"
+          git commit -m "Backup ALL CPI iFlows (full tenant backup)" || echo "No changes"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git --force
 
-          git push --force https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
 
 
