@@ -14,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0    # VERY IMPORTANT → allows pulling
+          fetch-depth: 0
 
       - name: Export CPI iFlow (ZIP)
         run: |
@@ -26,22 +26,18 @@ jobs:
             -X GET "$URL" \
             -o "${{ secrets.IFLOW_ID }}_${{ secrets.IFLOW_VERSION }}.zip"
 
-      - name: Commit and Push Backup
+      - name: Commit and Push Backup (force)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
 
-          # Pull latest changes first
-          git pull --rebase origin main
-
-          # Stage and commit
           git add .
-          git commit -m "Backup of ${{ secrets.IFLOW_ID }} (version ${{ secrets.IFLOW_VERSION }})" || echo "No changes to commit"
+          git commit -m "Backup of ${{ secrets.IFLOW_ID }} (version ${{ secrets.IFLOW_VERSION }})" || echo "No changes"
 
-          # Push changes
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git push --force https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+
 
 
 
