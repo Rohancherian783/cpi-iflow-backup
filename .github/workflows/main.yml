@@ -13,14 +13,18 @@ jobs:
 
       - name: Export CPI iFlow (ZIP)
         run: |
-          curl -u "${{ secrets.CPI_USERNAME }}:${{ secrets.CPI_PASSWORD }}" \
-          -X GET "${{ secrets.CPI_HOST }}/api/v1/IntegrationDesigntimeArtifacts(Id='${{ secrets.IFLOW_ID }}',Version='${{ secrets.IFLOW_VERSION }}')/\$value" \
-          -o "${{ secrets.IFLOW_ID }}_${{ secrets.IFLOW_VERSION }}.zip"
+          echo "Calling CPI API..."
+          URL="${{ secrets.CPI_HOST }}/api/v1/IntegrationDesigntimeArtifacts(Id='${{ secrets.IFLOW_ID }}',Version='${{ secrets.IFLOW_VERSION }}')/%24value"
+          echo "URL = $URL"
+          curl -v -u "${{ secrets.CPI_USERNAME }}:${{ secrets.CPI_PASSWORD }}" \
+            -X GET "$URL" \
+            -o "${{ secrets.IFLOW_ID }}_${{ secrets.IFLOW_VERSION }}.zip"
 
       - name: Commit and Push Backup
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add .
-          git commit -m "Backup of ${{ secrets.IFLOW_ID }} version ${{ secrets.IFLOW_VERSION }}"
+          git commit -m "Backup of ${{ secrets.IFLOW_ID }} (version ${{ secrets.IFLOW_VERSION }})"
           git push
+
