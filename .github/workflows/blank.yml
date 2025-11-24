@@ -1,34 +1,37 @@
 name: Backup SAP CPI iFlows
 
 on:
-  workflow_dispatch:       # Manually run anytime
+  workflow_dispatch:
   schedule:
-    - cron: "0 0 * * *"    # Runs daily at midnight (optional)
+    - cron: "0 0 * * *"
 
 jobs:
   backup:
     runs-on: ubuntu-latest
 
     steps:
-    # Step 1: Checkout GitHub repo
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    # Step 2: Get list of ALL iFlows
+    # DEBUG: print your URL (optional)
+    - name: Debug URL
+      run: |
+        echo "Tenant URL: '${{ secrets.CPI_TENANT }}'"
+
     - name: Fetch iFlow List
       id: list
       run: |
         echo "Fetching available iFlows..."
+
         curl -u "${{ secrets.CPI_USERNAME }}:${{ secrets.CPI_PASSWORD }}" \
-        "${{ secrets.CPI_TENANT_URL }}/itspaces/odata/api/v1/IntegrationDesigntimeArtifacts" \
+        "${{ secrets.CPI_TENANT }}/itspaces/odata/api/v1/IntegrationDesigntimeArtifacts" \
         -o iflows.xml
 
-        # Extract iFlow IDs from XML
         grep -oP '(?<=<Id>).*?(?=</Id>)' iflows.xml > iflows.txt
+
         echo "iFlows found:"
         cat iflows.txt
 
-    # Step 3: Export each iFlow as ZIP
     - name: Export iFlows
       run: |
         mkdir -p backup
@@ -36,19 +39,19 @@ jobs:
           echo "Exporting: $IFLOW_ID"
 
           curl -u "${{ secrets.CPI_USERNAME }}:${{ secrets.CPI_PASSWORD }}" \
-          "${{ secrets.CPI_TENANT_URL }}/itspaces/odata/api/v1/IntegrationDesigntimeArtifacts('$IFLOW_ID')/\$value" \
+          "${{ secrets.CPI_TENANT }}/itspaces/odata/api/v1/IntegrationDesigntimeArtifacts('$IFLOW_ID')/\$value" \
           --output "backup/${IFLOW_ID}.zip"
 
           echo "Export completed: ${IFLOW_ID}.zip"
         done < iflows.txt
 
-    # Step 4: Commit backup to GitHub
     - name: Commit and Push
       run: |
-        git config user.email "actions@github.com"
-        git config user.name "github-actions"
+        git config --local user.email "actions@github.com"
+        git config --local user.name "github-actions"
 
         git add backup/ || true
         git commit -m "Auto Backup - $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes to commit"
         git push
+
 
