@@ -13,25 +13,40 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    # DEBUG: print your URL (optional)
+    # Install xmlstarlet for safe XML parsing
+    - name: Install xmlstarlet
+      run: sudo apt-get install -y xmlstarlet
+
+    # Debug tenant URL
     - name: Debug URL
       run: |
         echo "Tenant URL: '${{ secrets.CPI_TENANT }}'"
 
+    # Step 1: Fetch list of all iFlows
     - name: Fetch iFlow List
-      id: list
       run: |
-        echo "Fetching available iFlows..."
-
+        echo "Fetching iFlows..."
         curl -u "${{ secrets.CPI_USERNAME }}:${{ secrets.CPI_PASSWORD }}" \
         "${{ secrets.CPI_TENANT }}/itspaces/odata/api/v1/IntegrationDesigntimeArtifacts" \
         -o iflows.xml
 
-        grep -oP '(?<=<Id>).*?(?=</Id>)' iflows.xml > iflows.txt
+        echo "iFlows XML downloaded."
+        cat iflows.xml
+
+    # Step 2: Extract iFlow IDs using xmlstarlet (works for all tenants)
+    - name: Extract iFlow IDs
+      run: |
+        echo "Extracting iFlow IDs..."
+
+        xmlstarlet sel -N d="http://www.w3.org/2005/Atom" \
+                       -N m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" \
+                       -N s="http://schemas.microsoft.com/ado/2007/08/dataservices" \
+                       -t -m "//s:Id" -v . -n iflows.xml > iflows.txt
 
         echo "iFlows found:"
         cat iflows.txt
 
+    # Step 3: Export all iFlows as ZIP
     - name: Export iFlows
       run: |
         mkdir -p backup
@@ -42,16 +57,18 @@ jobs:
           "${{ secrets.CPI_TENANT }}/itspaces/odata/api/v1/IntegrationDesigntimeArtifacts('$IFLOW_ID')/\$value" \
           --output "backup/${IFLOW_ID}.zip"
 
-          echo "Export completed: ${IFLOW_ID}.zip"
+          echo "Exported: ${IFLOW_ID}.zip"
         done < iflows.txt
 
+    # Step 4: Commit and push
     - name: Commit and Push
       run: |
         git config --local user.email "actions@github.com"
         git config --local user.name "github-actions"
 
-        git add backup/ || true
-        git commit -m "Auto Backup - $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes to commit"
+        git add backup/* || true
+        git commit -m "Auto Backup $(date '+%Y-%m-%d %H:%M:%S')" || echo "No changes"
         git push
+
 
 
