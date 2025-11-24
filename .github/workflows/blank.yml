@@ -1,3 +1,16 @@
+name: Debug CPI iFlows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
     - name: Fetch iFlow List
       run: |
         echo "Fetching iFlows..."
@@ -10,6 +23,7 @@
         echo "------ iflows.xml content ------"
         cat iflows.xml
         echo "--------------------------------"
+
 
 
 
